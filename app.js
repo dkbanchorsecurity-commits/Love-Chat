@@ -226,13 +226,39 @@ async function sendTextMessage(text) {
     }
 }
 
-// Send typed text
+
+// ==========================================
+// TEXTAREA AUTO-EXPAND & ENTER KEY LOGIC
+// ==========================================
+
+// Auto-expand the textarea as you type
+messageInput.addEventListener('input', function() {
+    this.style.height = 'auto'; 
+    this.style.height = (this.scrollHeight) + 'px'; 
+});
+
+// Handle the "Enter" key
+messageInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault(); 
+        
+        const text = this.value.trim();
+        if (text) {
+            sendTextMessage(text);
+            this.value = ''; 
+            this.style.height = 'auto'; 
+        }
+    }
+});
+
+// Send typed text (Mobile Submit Button)
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = messageInput.value.trim();
     if (text) {
         await sendTextMessage(text);
         messageInput.value = ''; 
+        messageInput.style.height = 'auto'; // Shrink box back to normal
     }
 });
 
