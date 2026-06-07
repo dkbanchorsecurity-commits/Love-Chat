@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LoveChat</title>
+    
+    <link rel="icon" href="love-logo.png" type="image/png">
+    
+    <link rel="manifest" href="manifest.json">
+    
+    <meta name="theme-color" content="#ff6b81">
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="LoveChat">
+    <link rel="apple-touch-icon" href="love-logo.png">
+
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    
+    <div class="chat-app" id="auth-section">
+        <div class="auth-card">
+            <h1 class="auth-title">LoveChat</h1>
+            <p class="auth-subtitle">A private space just for us.</p>
+            
+            <form id="auth-form" class="auth-step">
+                <input type="text" id="auth-name" placeholder="Your Name (e.g., Hubby)" class="auth-input" style="display: none;">
+                <input type="email" id="auth-email" placeholder="Email Address" class="auth-input" required>
+                <input type="password" id="auth-password" placeholder="Password" class="auth-input" required>
+                <button type="submit" id="auth-submit-btn" class="auth-btn">Login</button>
+            </form>
+
+            <button id="auth-toggle-btn" class="auth-toggle">Need an account? Sign up</button>
+        </div>
+    </div>
+
+    <div class="chat-app" id="chat-section" style="display: none;">
+        
+        <header class="chat-header" style="display: flex; justify-content: space-between; align-items: center;">
+            <div style="display: flex; flex-direction: column; align-items: flex-start; text-align: left;">
+                <h2 style="margin:0; font-size: 22px;">LoveChat</h2>
+                <span id="user-greeting" style="font-size: 14px; opacity: 0.9; margin-top: 2px;"></span>
+            </div>
+            <button id="logout-btn" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 14px; text-decoration: underline;">Logout</button>
+        </header>
+
+        <main class="chat-box" id="chat-box">
+            </main>
+
+        <div class="quick-emojis" id="quick-emojis">
+            <span class="emoji-btn" title="Love">❤️</span>
+            <span class="emoji-btn" title="Heart Eyes">😍</span>
+            <span class="emoji-btn" title="Kiss">😘</span>
+            
+            <span class="emoji-btn" title="OK">👍</span>
+            <span class="emoji-btn" title="Perfect">👌</span>
+            <span class="emoji-btn" title="Thank You">🙏</span>
+            <span class="emoji-btn" title="Smile">😊</span>
+            
+            <span class="emoji-btn" title="Sparkle Heart">💖</span>
+            <span class="emoji-btn" title="Fire">🔥</span>
+            <span class="emoji-btn" title="Rose">🌹</span>
+        </div>
+
+        <form class="chat-input-area" id="chat-form">
+            <label for="image-upload" class="attachment-btn" title="Send Photo">📷</label>
+            <input type="file" id="image-upload" accept="image/*" capture="environment" hidden>
+            
+            <label for="video-upload" class="attachment-btn" title="Send Video">🎥</label>
+            <input type="file" id="video-upload" accept="video/*" capture="camcorder" hidden>
+            
+            <label for="file-upload" class="attachment-btn" title="Send File">📎</label>
+            <input type="file" id="file-upload" accept="*/*" hidden>
+
+            <button type="button" id="mic-btn" class="attachment-btn" title="Record Voice Note" style="border:none; background:transparent;">🎤</button>
+
+            <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+            <button type="submit">Send</button>
+        </form>
+    </div>
+
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(reg => console.log('Service Worker registered!'))
+                    .catch(err => console.error('Service Worker registration failed:', err));
+            });
+        }
+    </script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>

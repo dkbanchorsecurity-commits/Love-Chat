@@ -1,0 +1,23 @@
+{
+  "name": "LoveChat",
+  "short_name": "LoveChat",
+  "description": "A private space just for us.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffe6ea",
+  "theme_color": "#ff6b81",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "love-logo.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "love-logo.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any maskable"
+    }
+  ]
+}
