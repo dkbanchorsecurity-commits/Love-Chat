@@ -5,7 +5,8 @@ const ASSETS_TO_CACHE = [
     './style.css',
     './app.js',
     './manifest.json',
-    './love-logo.png'
+    './love-logo.png',
+    './notification.wav'
 ];
 
 // Install Event: Save the core files to the phone's cache

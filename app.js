@@ -2,6 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/fireba
 import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-storage.js";
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
+import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging.js";
 
 // Your Firebase Configuration
 const firebaseConfig = {
@@ -19,6 +20,7 @@ const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app); 
 const auth = getAuth(app); 
+const messaging = getMessaging(app);
 
 // DOM Elements
 const authSection = document.getElementById('auth-section');
@@ -53,7 +55,8 @@ let isLoginMode = true;
 // Notification Variables
 let isTabActive = true;
 let unreadCount = 0;
-const notificationSound = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+const notificationSound = new Audio('notification.wav');
+notificationSound.volume = 1.0; // Max volume
 
 
 // ==========================================
@@ -75,9 +78,39 @@ function updateBadge() {
         unreadBadge.textContent = unreadCount;
         unreadBadge.style.display = 'inline-block';
         document.title = `(${unreadCount}) LoveChat`; 
+        
+        if ('setAppBadge' in navigator) {
+            navigator.setAppBadge(unreadCount).catch(err => console.error("Badge error:", err));
+        }
     } else {
         unreadBadge.style.display = 'none';
         document.title = 'LoveChat';
+        
+        if ('clearAppBadge' in navigator) {
+            navigator.clearAppBadge().catch(err => console.error("Clear badge error:", err));
+        }
+    }
+}
+
+async function requestPushPermissions() {
+    console.log("Requesting notification permission...");
+    try {
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted') {
+            console.log("Notification permission granted.");
+            const currentToken = await getToken(messaging, { 
+                vapidKey: 'BMij6-HsOZkHRSx1b5phkZN3jXh2TT8nyjWLxia-1uuz4nTfPtJI3AF63ihnxkq16sbavg95JslhTqMcVq-Bppw' 
+            });
+            if (currentToken) {
+                console.log("Device Token Generated:", currentToken);
+            } else {
+                console.log("No registration token available.");
+            }
+        } else {
+            console.log("Unable to get permission to notify.");
+        }
+    } catch (error) {
+        console.error("An error occurred while retrieving token.", error);
     }
 }
 
@@ -132,7 +165,9 @@ onAuthStateChanged(auth, (user) => {
         userGreeting.textContent = `Welcome, ${user.displayName || "Love"}!`;
         authForm.reset(); 
         authSubmitBtn.textContent = isLoginMode ? 'Login' : 'Sign Up';
+        
         loadMessages();
+        requestPushPermissions(); 
     } else {
         authSection.style.display = 'flex';
         chatSection.style.display = 'none';
@@ -188,7 +223,7 @@ function loadMessages() {
                 if (change.type === "added") {
                     const data = change.doc.data();
                     if (data.senderId !== auth.currentUser.uid) {
-                        notificationSound.play().catch(e => console.log("Sound blocked by browser.", e));
+                        notificationSound.play().catch(e => console.log("Sound blocked.", e));
                         if (!isTabActive) {
                             unreadCount++;
                             updateBadge();
@@ -231,17 +266,14 @@ async function sendTextMessage(text) {
 // TEXTAREA AUTO-EXPAND & ENTER KEY LOGIC
 // ==========================================
 
-// Auto-expand the textarea as you type
 messageInput.addEventListener('input', function() {
     this.style.height = 'auto'; 
     this.style.height = (this.scrollHeight) + 'px'; 
 });
 
-// Handle the "Enter" key
 messageInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault(); 
-        
         const text = this.value.trim();
         if (text) {
             sendTextMessage(text);
@@ -251,23 +283,26 @@ messageInput.addEventListener('keydown', function(e) {
     }
 });
 
-// Send typed text (Mobile Submit Button)
 chatForm.addEventListener('submit', async (e) => {
     e.preventDefault();
     const text = messageInput.value.trim();
     if (text) {
         await sendTextMessage(text);
         messageInput.value = ''; 
-        messageInput.style.height = 'auto'; // Shrink box back to normal
+        messageInput.style.height = 'auto'; 
     }
 });
 
-// Instant Send for Quick Emojis
 emojiBtns.forEach(btn => {
     btn.addEventListener('click', async () => {
         await sendTextMessage(btn.textContent);
     });
 });
+
+
+// ==========================================
+// MEDIA UPLOAD & RECORDING
+// ==========================================
 
 // Convert Image to WebP
 async function convertToWebP(file) {
@@ -294,7 +329,6 @@ async function convertToWebP(file) {
     });
 }
 
-// Upload Handler (with 20MB limit)
 async function handleFileUpload(file) {
     if (!file || !auth.currentUser) return;
 
