@@ -105,6 +105,14 @@ body {
     box-shadow: 0 0 15px rgba(255, 107, 129, 0.15); 
 }
 
+#chat-section {
+    background: 
+        linear-gradient(rgba(255, 240, 243, 0.85), rgba(255, 240, 243, 0.85)), 
+        url('https://images.unsplash.com/photo-1518621736915-f3b1c41bfd00?q=80&w=800&auto=format&fit=crop');
+    background-size: cover;
+    background-position: center;
+}
+
 .chat-header {
     background-color: #ff6b81; 
     color: white;
@@ -119,14 +127,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    
-    /* Rose Background Overlay */
-    background: 
-        linear-gradient(rgba(255, 240, 243, 0.85), rgba(255, 240, 243, 0.85)), 
-        url('https://images.unsplash.com/photo-1518621736915-f3b1c41bfd00?q=80&w=800&auto=format&fit=crop');
-    background-size: cover;
-    background-position: center;
-    background-attachment: fixed;
+    background-color: transparent; 
 }
 
 /* Base message styling */
@@ -172,6 +173,18 @@ body {
     padding: 5px 12px;
     border-radius: 12px;
     border: 1px solid #ffd1da;
+}
+
+/* Notification Badge */
+.unread-badge {
+    background-color: #ff3b50; 
+    color: white;
+    font-size: 12px;
+    font-weight: bold;
+    padding: 2px 8px;
+    border-radius: 12px;
+    margin-left: 10px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
 }
 
 /* Quick Emojis Bar */
@@ -271,6 +284,26 @@ body {
     .chat-header { padding: 15px; }
     .chat-box { padding: 15px; }
     
-    .chat-input-area input[type="text"], .auth-input, .auth-btn { font-size: 16px; }
-    .attachment-btn { font-size: 22px; padding: 5px 3px; }
+    .quick-emojis { padding: 8px 5px; }
+    .emoji-btn { font-size: 20px; }
+
+    .chat-input-area {
+        padding: 10px 8px; 
+        padding-bottom: calc(10px + env(safe-area-inset-bottom)); 
+    }
+
+    .chat-input-area input[type="text"] { 
+        padding: 10px 12px;
+        margin: 0 5px; 
+        font-size: 16px; 
+    }
+
+    .auth-input, .auth-btn { font-size: 16px; }
+    .attachment-btn { font-size: 20px; padding: 5px 3px; }
+
+    .chat-input-area button[type="submit"] {
+        padding: 10px 12px;
+        font-size: 15px;
+        white-space: nowrap; 
+    }
 }

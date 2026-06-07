@@ -24,6 +24,7 @@ const auth = getAuth(app);
 const authSection = document.getElementById('auth-section');
 const chatSection = document.getElementById('chat-section');
 const userGreeting = document.getElementById('user-greeting');
+const unreadBadge = document.getElementById('unread-badge');
 
 const authForm = document.getElementById('auth-form');
 const authName = document.getElementById('auth-name');
@@ -48,6 +49,37 @@ let audioChunks = [];
 let isRecording = false;
 let unsubscribeMessages = null; 
 let isLoginMode = true; 
+
+// Notification Variables
+let isTabActive = true;
+let unreadCount = 0;
+const notificationSound = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+
+
+// ==========================================
+// NOTIFICATION & TAB FOCUS LOGIC
+// ==========================================
+
+window.addEventListener('focus', () => {
+    isTabActive = true;
+    unreadCount = 0; 
+    updateBadge();
+});
+
+window.addEventListener('blur', () => {
+    isTabActive = false; 
+});
+
+function updateBadge() {
+    if (unreadCount > 0) {
+        unreadBadge.textContent = unreadCount;
+        unreadBadge.style.display = 'inline-block';
+        document.title = `(${unreadCount}) LoveChat`; 
+    } else {
+        unreadBadge.style.display = 'none';
+        document.title = 'LoveChat';
+    }
+}
 
 
 // ==========================================
@@ -115,15 +147,17 @@ onAuthStateChanged(auth, (user) => {
 
 function loadMessages() {
     const messagesQuery = query(collection(db, "messages"), orderBy("createdAt"));
-    
+    let isInitialLoad = true; 
+
     unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
         chatBox.innerHTML = ''; 
         let lastDate = null; 
 
+        // 1. Draw Messages
         snapshot.forEach((doc) => {
             const data = doc.data();
             
-            // Smart Date Separator Logic
+            // Smart Date Separator
             if (data.createdAt) {
                 const messageDateObj = data.createdAt.toDate();
                 const today = new Date();
@@ -148,6 +182,23 @@ function loadMessages() {
             displayMessage(data); 
         });
         
+        // 2. Notification Logic for New Messages
+        if (!isInitialLoad) {
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added") {
+                    const data = change.doc.data();
+                    if (data.senderId !== auth.currentUser.uid) {
+                        notificationSound.play().catch(e => console.log("Sound blocked by browser.", e));
+                        if (!isTabActive) {
+                            unreadCount++;
+                            updateBadge();
+                        }
+                    }
+                }
+            });
+        }
+
+        isInitialLoad = false; 
         chatBox.scrollTop = chatBox.scrollHeight;
     });
 }

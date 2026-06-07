@@ -40,7 +40,10 @@
         
         <header class="chat-header" style="display: flex; justify-content: space-between; align-items: center;">
             <div style="display: flex; flex-direction: column; align-items: flex-start; text-align: left;">
-                <h2 style="margin:0; font-size: 22px;">LoveChat</h2>
+                <h2 style="margin:0; font-size: 22px; display: flex; align-items: center;">
+                    LoveChat
+                    <span id="unread-badge" class="unread-badge" style="display: none;">0</span>
+                </h2>
                 <span id="user-greeting" style="font-size: 14px; opacity: 0.9; margin-top: 2px;"></span>
             </div>
             <button id="logout-btn" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 14px; text-decoration: underline;">Logout</button>
@@ -53,12 +56,10 @@
             <span class="emoji-btn" title="Love">❤️</span>
             <span class="emoji-btn" title="Heart Eyes">😍</span>
             <span class="emoji-btn" title="Kiss">😘</span>
-            
             <span class="emoji-btn" title="OK">👍</span>
             <span class="emoji-btn" title="Perfect">👌</span>
             <span class="emoji-btn" title="Thank You">🙏</span>
             <span class="emoji-btn" title="Smile">😊</span>
-            
             <span class="emoji-btn" title="Sparkle Heart">💖</span>
             <span class="emoji-btn" title="Fire">🔥</span>
             <span class="emoji-btn" title="Rose">🌹</span>
