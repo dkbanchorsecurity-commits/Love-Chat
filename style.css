@@ -292,18 +292,23 @@ body {
         padding-bottom: calc(10px + env(safe-area-inset-bottom)); 
     }
 
+    /* Optimized icons and spacing for mobile */
     .chat-input-area input[type="text"] { 
-        padding: 10px 12px;
-        margin: 0 5px; 
+        padding: 10px;
+        margin: 0 4px; 
         font-size: 16px; 
     }
 
     .auth-input, .auth-btn { font-size: 16px; }
-    .attachment-btn { font-size: 20px; padding: 5px 3px; }
+    
+    .attachment-btn { 
+        font-size: 17px; 
+        padding: 5px 2px; 
+    }
 
     .chat-input-area button[type="submit"] {
         padding: 10px 12px;
-        font-size: 15px;
+        font-size: 14px;
         white-space: nowrap; 
     }
 }
