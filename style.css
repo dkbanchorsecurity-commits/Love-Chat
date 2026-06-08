@@ -17,7 +17,7 @@ body { background-color: #ffe6ea; display: flex; justify-content: center; height
 /* Chat App Base */
 .chat-app { width: 100%; max-width: 500px; background: #ffffff; display: flex; flex-direction: column; height: 100dvh; box-shadow: 0 0 15px rgba(255, 107, 129, 0.15); }
 #chat-section { background: linear-gradient(rgba(255, 240, 243, 0.85), rgba(255, 240, 243, 0.85)), url('https://images.unsplash.com/photo-1518621736915-f3b1c41bfd00?q=80&w=800&auto=format&fit=crop'); background-size: cover; background-position: center; }
-.chat-header { background-color: #ff6b81; color: white; padding: 20px; text-align: center; }
+.chat-header { background-color: #ff6b81; color: white; padding: 20px; text-align: center; transition: background-color 0.3s ease; }
 .chat-box { flex: 1; padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; background-color: transparent; }
 
 /* Messages */
@@ -30,6 +30,11 @@ body { background-color: #ffe6ea; display: flex; justify-content: center; height
 .message.received .timestamp { color: #666666; }
 .date-separator { text-align: center; margin: 15px 0 5px 0; font-size: 11px; color: #888; font-weight: bold; width: 100%; }
 .date-separator span { background-color: #ffe6ea; padding: 5px 12px; border-radius: 12px; border: 1px solid #ffd1da; }
+
+/* Status Indicators */
+.msg-status { margin-left: 5px; font-size: 11px; font-weight: bold; display: inline-block; }
+.msg-status.sent { color: #888888; }
+.msg-status.read { color: #34b7f1; }
 
 /* Badges & Emojis */
 .unread-badge { background-color: #ff3b50; color: white; font-size: 12px; font-weight: bold; padding: 2px 8px; border-radius: 12px; margin-left: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }

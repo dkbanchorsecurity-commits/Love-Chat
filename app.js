@@ -1,5 +1,5 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, setDoc, getDoc, getDocs, where, deleteDoc } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, setDoc, getDoc, getDocs, where, deleteDoc, updateDoc, enableIndexedDbPersistence } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-storage.js";
 import { getAuth, RecaptchaVerifier, signInWithPhoneNumber, updateProfile, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
 import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging.js";
@@ -15,6 +15,15 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+
+// ==========================================
+// OFFLINE PERSISTENCE
+// ==========================================
+enableIndexedDbPersistence(db).catch((err) => {
+    if (err.code == 'failed-precondition') console.log("Offline mode works in one tab at a time.");
+    else if (err.code == 'unimplemented') console.log("Browser doesn't support offline storage.");
+});
+
 const storage = getStorage(app); 
 const auth = getAuth(app); 
 const messaging = getMessaging(app);
@@ -24,6 +33,8 @@ const authSection = document.getElementById('auth-section');
 const inboxSection = document.getElementById('inbox-section');
 const chatSection = document.getElementById('chat-section');
 
+const inboxHeader = document.getElementById('inbox-header');
+const chatHeader = document.getElementById('chat-header');
 const inboxGreeting = document.getElementById('inbox-greeting');
 const chatPartnerName = document.getElementById('chat-partner-name');
 const unreadBadge = document.getElementById('unread-badge');
@@ -68,6 +79,11 @@ const forwardModal = document.getElementById('forward-modal');
 const forwardContactList = document.getElementById('forward-contact-list');
 const btnCancelForward = document.getElementById('btn-cancel-forward');
 
+const locationBtn = document.getElementById('location-btn');
+const viewMapBtn = document.getElementById('view-map-btn');
+const mapModal = document.getElementById('map-modal');
+const closeMapBtn = document.getElementById('close-map-btn');
+
 // State Variables
 let mediaRecorder; let audioChunks = []; let isRecording = false;
 let unsubscribeMessages = null; let unsubscribeContacts = null;
@@ -75,14 +91,25 @@ let unsubscribeTyping = null; let typingTimeout = null;
 let currentActiveRoomId = null; let currentPartnerDetails = null;
 let confirmationResult = null;
 let selectedMessageId = null; let selectedMessageData = null;
+let watchId = null; let mapInstance = null; let partnerMarker = null; let unsubscribePartnerLocation = null;
 
-// Notification Variables
 let isTabActive = true; let unreadCount = 0;
 const notificationSound = new Audio('notification.wav');
 notificationSound.volume = 1.0;
 
+// ==========================================
+// NETWORK STATUS & BADGE LOGIC
+// ==========================================
+window.addEventListener('offline', () => {
+    inboxHeader.style.backgroundColor = '#888888'; chatHeader.style.backgroundColor = '#888888';
+});
+window.addEventListener('online', () => {
+    inboxHeader.style.backgroundColor = '#ff6b81'; chatHeader.style.backgroundColor = '#ff6b81';
+});
+
 window.addEventListener('focus', () => { isTabActive = true; unreadCount = 0; updateBadge(); });
 window.addEventListener('blur', () => { isTabActive = false; });
+window.addEventListener('popstate', (event) => { if (currentActiveRoomId) closeChatWindow(); });
 
 function updateBadge() {
     if (unreadCount > 0) {
@@ -108,6 +135,9 @@ async function requestPushPermissions() {
     } catch (error) { console.error("Token error", error); }
 }
 
+// ==========================================
+// AUTHENTICATION LOGIC
+// ==========================================
 function setupRecaptcha() {
     if (!window.recaptchaVerifier) {
         window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', { 'size': 'normal', 'callback': (response) => {} });
@@ -116,7 +146,7 @@ function setupRecaptcha() {
 
 authForm.addEventListener('submit', async (e) => {
     e.preventDefault(); const phoneNumber = authPhone.value.trim();
-    if (!phoneNumber.startsWith('+')) { alert("Please include your country code (e.g., +1 for US/Canada)."); return; }
+    if (!phoneNumber.startsWith('+')) { alert("Please include your country code (e.g., +1)."); return; }
     setupRecaptcha(); authSubmitBtn.textContent = 'Sending...';
     try {
         confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, window.recaptchaVerifier);
@@ -145,15 +175,18 @@ logoutBtn.addEventListener('click', () => signOut(auth));
 
 onAuthStateChanged(auth, async (user) => {
     if (user) {
+        history.replaceState({ view: 'inbox' }, '', '#inbox');
         if (user.photoURL) { myAvatar.textContent = ''; myAvatar.style.backgroundImage = `url(${user.photoURL})`; } 
         else { myAvatar.textContent = user.displayName ? user.displayName.charAt(0).toUpperCase() : 'L'; myAvatar.style.backgroundImage = ''; }
         authSection.style.display = 'none'; inboxSection.style.display = 'flex'; chatSection.style.display = 'none';
         inboxGreeting.textContent = `Welcome, ${user.displayName || "Love"}!`;
         loadInbox(); requestPushPermissions(); 
     } else {
+        history.replaceState({ view: 'auth' }, '', '#login');
         authSection.style.display = 'flex'; inboxSection.style.display = 'none'; chatSection.style.display = 'none';
         verifyForm.style.display = 'none'; authForm.style.display = 'block'; currentActiveRoomId = null;
         if (unsubscribeMessages) unsubscribeMessages(); if (unsubscribeContacts) unsubscribeContacts(); if (unsubscribeTyping) unsubscribeTyping();
+        if (unsubscribePartnerLocation) unsubscribePartnerLocation();
     }
 });
 
@@ -171,6 +204,9 @@ profilePicUpload.addEventListener('change', async (e) => {
     } catch (error) { alert("Failed to update profile picture."); myAvatar.textContent = auth.currentUser.displayName.charAt(0).toUpperCase(); }
 });
 
+// ==========================================
+// INBOX & ROUTING LOGIC
+// ==========================================
 function getPrivateRoomId(uid1, uid2) { return [uid1, uid2].sort().join('_'); }
 
 addContactForm.addEventListener('submit', async (e) => {
@@ -221,17 +257,86 @@ function openChatWindow(partnerUid, partnerName, partnerPhoto = null) {
     chatPartnerName.textContent = partnerName; typingTextName.textContent = `${partnerName} is typing`; 
     if (partnerPhoto) { chatPartnerAvatar.textContent = ''; chatPartnerAvatar.style.backgroundImage = `url(${partnerPhoto})`; } 
     else { chatPartnerAvatar.textContent = partnerName.charAt(0).toUpperCase(); chatPartnerAvatar.style.backgroundImage = ''; }
+    
+    history.pushState({ view: 'chat' }, '', '#chat');
     inboxSection.style.display = 'none'; chatSection.style.display = 'flex';
+    
     loadMessages(currentActiveRoomId);
+    listenToPartnerLocation(partnerUid);
 }
 
-backToInboxBtn.addEventListener('click', () => {
+function closeChatWindow() {
     chatSection.style.display = 'none'; inboxSection.style.display = 'flex';
     if (currentActiveRoomId && auth.currentUser) setDoc(doc(db, "chats", currentActiveRoomId), { typing: { [auth.currentUser.uid]: false } }, { merge: true });
     currentActiveRoomId = null; currentPartnerDetails = null;
     if (unsubscribeMessages) unsubscribeMessages(); if (unsubscribeTyping) unsubscribeTyping();
+    if (unsubscribePartnerLocation) unsubscribePartnerLocation();
+    viewMapBtn.style.display = 'none'; mapModal.style.display = 'none';
+}
+
+backToInboxBtn.addEventListener('click', () => history.back());
+
+// ==========================================
+// LOCATION TRACKING LOGIC
+// ==========================================
+locationBtn.addEventListener('click', () => {
+    if (!auth.currentUser) return;
+    if (watchId) {
+        navigator.geolocation.clearWatch(watchId); watchId = null;
+        locationBtn.style.color = ''; locationBtn.style.transform = 'scale(1)';
+        setDoc(doc(db, "users", auth.currentUser.uid), { isSharingLocation: false }, { merge: true });
+        sendTextMessage("📍 Stopped sharing live location.");
+    } else {
+        if (navigator.geolocation) {
+            locationBtn.style.color = '#ff3b50'; locationBtn.style.transform = 'scale(1.2)';
+            sendTextMessage("📍 Started sharing live location.");
+            watchId = navigator.geolocation.watchPosition(async (position) => {
+                await setDoc(doc(db, "users", auth.currentUser.uid), {
+                    isSharingLocation: true, location: { lat: position.coords.latitude, lng: position.coords.longitude }
+                }, { merge: true });
+            }, (err) => { alert("Please allow location access to share your live location."); locationBtn.style.color = ''; }, { enableHighAccuracy: true });
+        } else { alert("Geolocation not supported."); }
+    }
 });
 
+function listenToPartnerLocation(partnerUid) {
+    if (unsubscribePartnerLocation) unsubscribePartnerLocation();
+    unsubscribePartnerLocation = onSnapshot(doc(db, "users", partnerUid), (docSnap) => {
+        if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.isSharingLocation && data.location) {
+                viewMapBtn.style.display = 'block';
+                if (mapInstance && partnerMarker) {
+                    partnerMarker.setLatLng([data.location.lat, data.location.lng]); mapInstance.panTo([data.location.lat, data.location.lng]);
+                }
+            } else { viewMapBtn.style.display = 'none'; mapModal.style.display = 'none'; }
+        }
+    });
+}
+
+viewMapBtn.addEventListener('click', async () => {
+    mapModal.style.display = 'flex';
+    setTimeout(() => {
+        if (!mapInstance) {
+            mapInstance = L.map('map-container').setView([0, 0], 16);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap' }).addTo(mapInstance);
+            partnerMarker = L.marker([0, 0]).addTo(mapInstance);
+        }
+        mapInstance.invalidateSize(); 
+        getDoc(doc(db, "users", currentPartnerDetails.uid)).then(docSnap => {
+            if (docSnap.exists() && docSnap.data().location) {
+                const loc = docSnap.data().location;
+                partnerMarker.setLatLng([loc.lat, loc.lng]); mapInstance.panTo([loc.lat, loc.lng]);
+                partnerMarker.bindPopup(`<b>${currentPartnerDetails.name}</b> is here.`).openPopup();
+            }
+        });
+    }, 300);
+});
+closeMapBtn.addEventListener('click', () => { mapModal.style.display = 'none'; });
+
+// ==========================================
+// ACTION MENUS (DELETE & FORWARD)
+// ==========================================
 btnCancelAction.addEventListener('click', () => actionSheetModal.style.display = 'none');
 btnCancelForward.addEventListener('click', () => forwardModal.style.display = 'none');
 
@@ -244,11 +349,9 @@ btnDeleteMsg.addEventListener('click', async () => {
 
 btnForwardMsg.addEventListener('click', async () => {
     actionSheetModal.style.display = 'none';
-    forwardContactList.innerHTML = '<p style="text-align:center;">Loading contacts...</p>';
-    forwardModal.style.display = 'flex';
+    forwardContactList.innerHTML = '<p style="text-align:center;">Loading contacts...</p>'; forwardModal.style.display = 'flex';
     try {
-        const contactsQuery = query(collection(db, "users", auth.currentUser.uid, "contacts"));
-        const snapshot = await getDocs(contactsQuery);
+        const contactsQuery = query(collection(db, "users", auth.currentUser.uid, "contacts")); const snapshot = await getDocs(contactsQuery);
         forwardContactList.innerHTML = '';
         if (snapshot.empty) { forwardContactList.innerHTML = '<p style="text-align:center; color:#888;">No contacts to forward to.</p>'; return; }
         
@@ -263,13 +366,12 @@ btnForwardMsg.addEventListener('click', async () => {
                 <div class="contact-info"><span class="contact-name">${contact.name}</span></div>
             `;
             card.addEventListener('click', async () => {
-                forwardModal.style.display = 'none';
-                if (!selectedMessageData) return;
+                forwardModal.style.display = 'none'; if (!selectedMessageData) return;
                 const targetRoom = getPrivateRoomId(auth.currentUser.uid, contact.uid);
                 try {
                     await addDoc(collection(db, "chats", targetRoom, "messages"), {
                         text: selectedMessageData.text || "", fileUrl: selectedMessageData.fileUrl || null, fileType: selectedMessageData.fileType || null,
-                        senderId: auth.currentUser.uid, senderName: auth.currentUser.displayName, createdAt: serverTimestamp(), isForwarded: true
+                        senderId: auth.currentUser.uid, senderName: auth.currentUser.displayName, createdAt: serverTimestamp(), isForwarded: true, read: false
                     });
                 } catch(e) { alert("Failed to forward."); }
             });
@@ -278,6 +380,9 @@ btnForwardMsg.addEventListener('click', async () => {
     } catch(e) { console.error(e); }
 });
 
+// ==========================================
+// CHAT & MEDIA LOGIC
+// ==========================================
 function loadMessages(roomId) {
     const messagesQuery = query(collection(db, "chats", roomId, "messages"), orderBy("createdAt"));
     let isInitialLoad = true; 
@@ -286,8 +391,15 @@ function loadMessages(roomId) {
 
     unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
         chatBox.innerHTML = ''; let lastDate = null; 
+        
         snapshot.forEach((docSnap) => {
             const data = docSnap.data();
+            
+            // Mark message as read
+            if (data.senderId !== auth.currentUser.uid && data.read !== true) {
+                updateDoc(doc(db, "chats", roomId, "messages", docSnap.id), { read: true }).catch(e => console.error(e));
+            }
+
             if (data.createdAt) {
                 const msgDate = data.createdAt.toDate(); const today = new Date(); const yest = new Date(); yest.setDate(yest.getDate() - 1);
                 let dStr = "";
@@ -298,6 +410,7 @@ function loadMessages(roomId) {
             }
             displayMessage(docSnap.id, data); 
         });
+        
         if (!isInitialLoad) {
             snapshot.docChanges().forEach((change) => {
                 if (change.type === "added" && change.doc.data().senderId !== auth.currentUser.uid) {
@@ -330,7 +443,7 @@ async function sendTextMessage(text) {
         try {
             setDoc(doc(db, "chats", currentActiveRoomId), { typing: { [auth.currentUser.uid]: false } }, { merge: true });
             await addDoc(collection(db, "chats", currentActiveRoomId, "messages"), {
-                text: text, senderId: auth.currentUser.uid, senderName: auth.currentUser.displayName, createdAt: serverTimestamp()
+                text: text, senderId: auth.currentUser.uid, senderName: auth.currentUser.displayName, createdAt: serverTimestamp(), read: false
             });
         } catch (error) { console.error("Send failed:", error); }
     }
@@ -370,7 +483,7 @@ async function handleFileUpload(file) {
         let mText = `📎 ${fileToUpload.name}`; if (file.type.startsWith('image/')) mText = '📷 Photo'; if (file.type.startsWith('video/')) mText = '🎥 Video';
         await addDoc(collection(db, "chats", currentActiveRoomId, "messages"), {
             text: mText, fileUrl: downloadURL, fileType: file.type.startsWith('video/') ? 'video' : (file.type.startsWith('image/') ? 'image' : 'file'), 
-            senderId: auth.currentUser.uid, senderName: auth.currentUser.displayName, createdAt: serverTimestamp()
+            senderId: auth.currentUser.uid, senderName: auth.currentUser.displayName, createdAt: serverTimestamp(), read: false
         });
     } catch (error) { alert("Upload failed."); }
 }
@@ -389,7 +502,7 @@ micBtn.addEventListener('click', async () => {
                     const snapshot = await uploadBytesResumable(storageRef, audioBlob); const downloadURL = await getDownloadURL(snapshot.ref);
                     await addDoc(collection(db, "chats", currentActiveRoomId, "messages"), {
                         text: '🎤 Voice Message', fileUrl: downloadURL, fileType: 'audio',
-                        senderId: auth.currentUser.uid, senderName: auth.currentUser.displayName, createdAt: serverTimestamp()
+                        senderId: auth.currentUser.uid, senderName: auth.currentUser.displayName, createdAt: serverTimestamp(), read: false
                     });
                 } catch (e) {}
             };
@@ -420,7 +533,15 @@ function displayMessage(msgId, data) {
     } else { messageDiv.appendChild(document.createTextNode(data.text)); }
 
     const timeSpan = document.createElement('span'); timeSpan.classList.add('timestamp');
-    if (data.createdAt) timeSpan.textContent = data.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); else timeSpan.textContent = "Sending..."; 
+    let timeText = data.createdAt ? data.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Sending..."; 
+    
+    let statusIndicator = '';
+    if (isMe && data.createdAt) {
+        if (data.read) { statusIndicator = '<span class="msg-status read">✓✓</span>'; } 
+        else { statusIndicator = '<span class="msg-status sent">✓</span>'; }
+    }
+    timeSpan.innerHTML = timeText + statusIndicator;
+    
     messageDiv.appendChild(timeSpan); wrapperDiv.appendChild(messageDiv); chatBox.appendChild(wrapperDiv);
 
     let pressTimer;
