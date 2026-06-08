@@ -1,10 +1,10 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-app.js";
-import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, setDoc, getDoc, getDocs, where } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-firestore.js";
 import { getStorage, ref, uploadBytesResumable, getDownloadURL } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-storage.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
-import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging.js";
+// NEW: Import Phone Auth modules
+import { getAuth, RecaptchaVerifier, signInWithPhoneNumber, updateProfile, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-auth.js";
+import { getMessaging, getToken } from "https://www.gstatic.com/firebasejs/12.14.0/firebase-messaging.js";
 
-// Your Firebase Configuration
 const firebaseConfig = {
   apiKey: "AIzaSyCDCSBEZfTSb02oBe1o2ahU3FjXci-gLvc",
   authDomain: "my-private-chat-127db.firebaseapp.com",
@@ -15,7 +15,6 @@ const firebaseConfig = {
   measurementId: "G-9QBSLSWN31"
 };
 
-// Initialize Firebase Services
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const storage = getStorage(app); 
@@ -24,17 +23,28 @@ const messaging = getMessaging(app);
 
 // DOM Elements
 const authSection = document.getElementById('auth-section');
+const inboxSection = document.getElementById('inbox-section');
 const chatSection = document.getElementById('chat-section');
-const userGreeting = document.getElementById('user-greeting');
+
+const inboxGreeting = document.getElementById('inbox-greeting');
+const chatPartnerName = document.getElementById('chat-partner-name');
 const unreadBadge = document.getElementById('unread-badge');
 
 const authForm = document.getElementById('auth-form');
 const authName = document.getElementById('auth-name');
-const authEmail = document.getElementById('auth-email');
-const authPassword = document.getElementById('auth-password');
+const authPhone = document.getElementById('auth-phone'); // NEW
 const authSubmitBtn = document.getElementById('auth-submit-btn');
-const authToggleBtn = document.getElementById('auth-toggle-btn');
+
+const verifyForm = document.getElementById('verify-form'); // NEW
+const authCode = document.getElementById('auth-code'); // NEW
+const verifySubmitBtn = document.getElementById('verify-submit-btn'); // NEW
+const cancelVerifyBtn = document.getElementById('cancel-verify-btn'); // NEW
 const logoutBtn = document.getElementById('logout-btn');
+
+const addContactForm = document.getElementById('add-contact-form');
+const newContactPhone = document.getElementById('new-contact-phone'); // NEW
+const contactList = document.getElementById('contact-list');
+const backToInboxBtn = document.getElementById('back-to-inbox-btn');
 
 const chatForm = document.getElementById('chat-form');
 const messageInput = document.getElementById('message-input');
@@ -50,441 +60,383 @@ let mediaRecorder;
 let audioChunks = [];
 let isRecording = false;
 let unsubscribeMessages = null; 
-let isLoginMode = true; 
+let unsubscribeContacts = null;
+let currentActiveRoomId = null; 
+let currentPartnerDetails = null;
+
+// Phone Auth Variable
+let confirmationResult = null;
 
 // Notification Variables
 let isTabActive = true;
 let unreadCount = 0;
 const notificationSound = new Audio('notification.wav');
-notificationSound.volume = 1.0; // Max volume
-
+notificationSound.volume = 1.0;
 
 // ==========================================
-// NOTIFICATION & TAB FOCUS LOGIC
+// NOTIFICATION LOGIC
 // ==========================================
-
-window.addEventListener('focus', () => {
-    isTabActive = true;
-    unreadCount = 0; 
-    updateBadge();
-});
-
-window.addEventListener('blur', () => {
-    isTabActive = false; 
-});
+window.addEventListener('focus', () => { isTabActive = true; unreadCount = 0; updateBadge(); });
+window.addEventListener('blur', () => { isTabActive = false; });
 
 function updateBadge() {
     if (unreadCount > 0) {
-        unreadBadge.textContent = unreadCount;
-        unreadBadge.style.display = 'inline-block';
-        document.title = `(${unreadCount}) LoveChat`; 
-        
-        if ('setAppBadge' in navigator) {
-            navigator.setAppBadge(unreadCount).catch(err => console.error("Badge error:", err));
-        }
+        unreadBadge.textContent = unreadCount; unreadBadge.style.display = 'inline-block'; document.title = `(${unreadCount}) LoveChat`; 
+        if ('setAppBadge' in navigator) navigator.setAppBadge(unreadCount).catch(e => console.error(e));
     } else {
-        unreadBadge.style.display = 'none';
-        document.title = 'LoveChat';
-        
-        if ('clearAppBadge' in navigator) {
-            navigator.clearAppBadge().catch(err => console.error("Clear badge error:", err));
-        }
+        unreadBadge.style.display = 'none'; document.title = 'LoveChat';
+        if ('clearAppBadge' in navigator) navigator.clearAppBadge().catch(e => console.error(e));
     }
 }
 
 async function requestPushPermissions() {
-    console.log("Requesting notification permission...");
     try {
         const permission = await Notification.requestPermission();
         if (permission === 'granted') {
-            console.log("Notification permission granted.");
-            const currentToken = await getToken(messaging, { 
-                vapidKey: 'BMij6-HsOZkHRSx1b5phkZN3jXh2TT8nyjWLxia-1uuz4nTfPtJI3AF63ihnxkq16sbavg95JslhTqMcVq-Bppw' 
-            });
+            const currentToken = await getToken(messaging, { vapidKey: 'BMij6-HsOZkHRSx1b5phkZN3jXh2TT8nyjWLxia-1uuz4nTfPtJI3AF63ihnxkq16sbavg95JslhTqMcVq-Bppw' });
             if (currentToken) {
-                console.log("Device Token Generated:", currentToken);
-            } else {
-                console.log("No registration token available.");
+                await setDoc(doc(db, "users", auth.currentUser.uid), {
+                    token: currentToken,
+                    name: auth.currentUser.displayName,
+                    phoneNumber: auth.currentUser.phoneNumber 
+                }, { merge: true });
             }
-        } else {
-            console.log("Unable to get permission to notify.");
         }
-    } catch (error) {
-        console.error("An error occurred while retrieving token.", error);
+    } catch (error) { console.error("Token error", error); }
+}
+
+// ==========================================
+// PHONE AUTHENTICATION LOGIC
+// ==========================================
+
+// Initialize reCAPTCHA
+function setupRecaptcha() {
+    if (!window.recaptchaVerifier) {
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+            'size': 'normal',
+            'callback': (response) => {
+                // reCAPTCHA solved, allow sending SMS
+            }
+        });
     }
 }
 
+// Step 1: Send the SMS
+authForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const phoneNumber = authPhone.value.trim();
+    
+    // Format requirement: Phone numbers MUST include country code (e.g., +1, +44)
+    if (!phoneNumber.startsWith('+')) {
+        alert("Please include your country code (e.g., +1 for US/Canada).");
+        return;
+    }
 
-// ==========================================
-// AUTHENTICATION LOGIC
-// ==========================================
+    setupRecaptcha();
+    authSubmitBtn.textContent = 'Sending...';
 
-authToggleBtn.addEventListener('click', () => {
-    isLoginMode = !isLoginMode;
-    if (isLoginMode) {
-        authName.style.display = 'none';
-        authName.removeAttribute('required');
-        authSubmitBtn.textContent = 'Login';
-        authToggleBtn.textContent = 'Need an account? Sign up';
-    } else {
-        authName.style.display = 'block';
-        authName.setAttribute('required', 'true');
-        authSubmitBtn.textContent = 'Sign Up';
-        authToggleBtn.textContent = 'Already have an account? Login';
+    try {
+        confirmationResult = await signInWithPhoneNumber(auth, phoneNumber, window.recaptchaVerifier);
+        // Switch to Verification UI
+        authForm.style.display = 'none';
+        verifyForm.style.display = 'block';
+        authSubmitBtn.textContent = 'Send SMS Code';
+    } catch (error) {
+        console.error("SMS Error:", error);
+        alert("Failed to send SMS. Check the number format or try again.");
+        authSubmitBtn.textContent = 'Send SMS Code';
+        if(window.recaptchaVerifier) window.recaptchaVerifier.render().then(widgetId => grecaptcha.reset(widgetId));
     }
 });
 
-authForm.addEventListener('submit', async (e) => {
+// Step 2: Verify the Code
+verifyForm.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const email = authEmail.value.trim();
-    const password = authPassword.value.trim();
+    const code = authCode.value.trim();
     const name = authName.value.trim();
+    verifySubmitBtn.textContent = 'Verifying...';
 
     try {
-        authSubmitBtn.textContent = 'Please wait...';
-        if (isLoginMode) {
-            await signInWithEmailAndPassword(auth, email, password);
-        } else {
-            const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-            await updateProfile(userCredential.user, { displayName: name });
-            auth.currentUser.reload();
-        }
+        const result = await confirmationResult.confirm(code);
+        const user = result.user;
+
+        // Save name to Profile and Firestore
+        await updateProfile(user, { displayName: name });
+        await setDoc(doc(db, "users", user.uid), {
+            name: name,
+            phoneNumber: user.phoneNumber, // Save phone number for routing
+            token: "" 
+        }, { merge: true }); // Merge ensures we don't overwrite existing contact lists
+        
+        verifyForm.reset();
+        verifySubmitBtn.textContent = 'Verify & Login';
     } catch (error) {
-        console.error("Auth Error:", error);
-        alert(error.message); 
-        authSubmitBtn.textContent = isLoginMode ? 'Login' : 'Sign Up';
+        console.error(error);
+        alert("Invalid SMS Code. Please try again.");
+        verifySubmitBtn.textContent = 'Verify & Login';
     }
+});
+
+cancelVerifyBtn.addEventListener('click', () => {
+    verifyForm.style.display = 'none';
+    authForm.style.display = 'block';
+    authCode.value = '';
+    if(window.recaptchaVerifier) window.recaptchaVerifier.render().then(widgetId => grecaptcha.reset(widgetId));
 });
 
 logoutBtn.addEventListener('click', () => signOut(auth));
 
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, async (user) => {
     if (user) {
         authSection.style.display = 'none';
-        chatSection.style.display = 'flex';
-        userGreeting.textContent = `Welcome, ${user.displayName || "Love"}!`;
-        authForm.reset(); 
-        authSubmitBtn.textContent = isLoginMode ? 'Login' : 'Sign Up';
+        inboxSection.style.display = 'flex';
+        chatSection.style.display = 'none';
+        inboxGreeting.textContent = `Welcome, ${user.displayName || "Love"}!`;
         
-        loadMessages();
+        loadInbox();
         requestPushPermissions(); 
     } else {
         authSection.style.display = 'flex';
+        inboxSection.style.display = 'none';
         chatSection.style.display = 'none';
+        verifyForm.style.display = 'none';
+        authForm.style.display = 'block';
+        currentActiveRoomId = null;
         if (unsubscribeMessages) unsubscribeMessages();
+        if (unsubscribeContacts) unsubscribeContacts();
     }
 });
 
+
+// ==========================================
+// INBOX & ROUTING LOGIC
+// ==========================================
+
+function getPrivateRoomId(uid1, uid2) { return [uid1, uid2].sort().join('_'); }
+
+// Add contact via PHONE NUMBER
+addContactForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const searchPhone = newContactPhone.value.trim();
+    if (!searchPhone.startsWith('+')) { alert("Include country code (e.g., +1)"); return; }
+    if (searchPhone === auth.currentUser.phoneNumber) { alert("You cannot add yourself."); return; }
+
+    try {
+        // Query database by phone number
+        const q = query(collection(db, "users"), where("phoneNumber", "==", searchPhone));
+        const querySnapshot = await getDocs(q);
+        
+        if (querySnapshot.empty) {
+            alert("No user found with that phone number. Make sure they have registered!"); return;
+        }
+
+        querySnapshot.forEach(async (userDoc) => {
+            const partnerData = userDoc.data();
+            const partnerId = userDoc.id;
+
+            await setDoc(doc(db, "users", auth.currentUser.uid, "contacts", partnerId), {
+                uid: partnerId, name: partnerData.name, phoneNumber: partnerData.phoneNumber
+            });
+
+            await setDoc(doc(db, "users", partnerId, "contacts", auth.currentUser.uid), {
+                uid: auth.currentUser.uid, name: auth.currentUser.displayName, phoneNumber: auth.currentUser.phoneNumber
+            });
+
+            newContactPhone.value = '';
+            openChatWindow(partnerId, partnerData.name);
+        });
+    } catch (error) { console.error("Search error", error); }
+});
+
+function loadInbox() {
+    const contactsQuery = query(collection(db, "users", auth.currentUser.uid, "contacts"));
+    
+    unsubscribeContacts = onSnapshot(contactsQuery, (snapshot) => {
+        contactList.innerHTML = '';
+        if (snapshot.empty) contactList.innerHTML = '<p style="text-align:center; color:#888; margin-top:20px;">No active chats. Add a phone number above!</p>';
+        
+        snapshot.forEach((doc) => {
+            const contact = doc.data();
+            const card = document.createElement('div');
+            card.classList.add('contact-card');
+            
+            card.innerHTML = `
+                <span class="contact-name">${contact.name}</span>
+                <span class="contact-email">${contact.phoneNumber}</span>
+            `;
+            
+            card.addEventListener('click', () => openChatWindow(contact.uid, contact.name));
+            contactList.appendChild(card);
+        });
+    });
+}
+
+function openChatWindow(partnerUid, partnerName) {
+    currentActiveRoomId = getPrivateRoomId(auth.currentUser.uid, partnerUid);
+    currentPartnerDetails = { uid: partnerUid, name: partnerName };
+    chatPartnerName.textContent = partnerName;
+    inboxSection.style.display = 'none'; chatSection.style.display = 'flex';
+    loadMessages(currentActiveRoomId);
+}
+
+backToInboxBtn.addEventListener('click', () => {
+    chatSection.style.display = 'none'; inboxSection.style.display = 'flex';
+    currentActiveRoomId = null; currentPartnerDetails = null;
+    if (unsubscribeMessages) unsubscribeMessages();
+});
 
 // ==========================================
 // CHAT & MEDIA LOGIC
 // ==========================================
 
-function loadMessages() {
-    const messagesQuery = query(collection(db, "messages"), orderBy("createdAt"));
+function loadMessages(roomId) {
+    const messagesQuery = query(collection(db, "chats", roomId, "messages"), orderBy("createdAt"));
     let isInitialLoad = true; 
 
-    unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
-        chatBox.innerHTML = ''; 
-        let lastDate = null; 
+    if (unsubscribeMessages) unsubscribeMessages(); 
 
-        // 1. Draw Messages
+    unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
+        chatBox.innerHTML = ''; let lastDate = null; 
+
         snapshot.forEach((doc) => {
             const data = doc.data();
-            
-            // Smart Date Separator
             if (data.createdAt) {
-                const messageDateObj = data.createdAt.toDate();
-                const today = new Date();
-                const yesterday = new Date();
-                yesterday.setDate(yesterday.getDate() - 1);
-                
-                let dateString = "";
-                if (messageDateObj.toDateString() === today.toDateString()) {
-                    dateString = "Today";
-                } else if (messageDateObj.toDateString() === yesterday.toDateString()) {
-                    dateString = "Yesterday";
-                } else {
-                    dateString = messageDateObj.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
-                }
-
-                if (dateString !== lastDate) {
-                    displayDateSeparator(dateString);
-                    lastDate = dateString;
-                }
+                const msgDate = data.createdAt.toDate(); const today = new Date(); const yest = new Date(); yest.setDate(yest.getDate() - 1);
+                let dStr = "";
+                if (msgDate.toDateString() === today.toDateString()) dStr = "Today"; 
+                else if (msgDate.toDateString() === yest.toDateString()) dStr = "Yesterday"; 
+                else dStr = msgDate.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+                if (dStr !== lastDate) { displayDateSeparator(dStr); lastDate = dStr; }
             }
-
             displayMessage(data); 
         });
         
-        // 2. Notification Logic for New Messages
         if (!isInitialLoad) {
             snapshot.docChanges().forEach((change) => {
-                if (change.type === "added") {
-                    const data = change.doc.data();
-                    if (data.senderId !== auth.currentUser.uid) {
-                        notificationSound.play().catch(e => console.log("Sound blocked.", e));
-                        if (!isTabActive) {
-                            unreadCount++;
-                            updateBadge();
-                        }
-                    }
+                if (change.type === "added" && change.doc.data().senderId !== auth.currentUser.uid) {
+                    notificationSound.play().catch(e => console.log(e));
+                    if (!isTabActive) { unreadCount++; updateBadge(); }
                 }
             });
         }
-
-        isInitialLoad = false; 
-        chatBox.scrollTop = chatBox.scrollHeight;
+        isInitialLoad = false; chatBox.scrollTop = chatBox.scrollHeight;
     });
 }
 
 function displayDateSeparator(dateText) {
-    const separatorDiv = document.createElement('div');
-    separatorDiv.classList.add('date-separator');
-    const textSpan = document.createElement('span');
-    textSpan.textContent = dateText;
-    separatorDiv.appendChild(textSpan);
-    chatBox.appendChild(separatorDiv);
+    const div = document.createElement('div'); div.classList.add('date-separator');
+    const span = document.createElement('span'); span.textContent = dateText;
+    div.appendChild(span); chatBox.appendChild(div);
 }
 
-// Reusable function to send any text/emoji instantly
 async function sendTextMessage(text) {
-    if (text && auth.currentUser) {
+    if (text && auth.currentUser && currentActiveRoomId) {
         try {
-            await addDoc(collection(db, "messages"), {
-                text: text,
-                senderId: auth.currentUser.uid,              
-                senderName: auth.currentUser.displayName,    
-                createdAt: serverTimestamp()
+            await addDoc(collection(db, "chats", currentActiveRoomId, "messages"), {
+                text: text, senderId: auth.currentUser.uid, senderName: auth.currentUser.displayName, createdAt: serverTimestamp()
             });
-        } catch (error) { console.error("Failed to send message:", error); }
+        } catch (error) { console.error("Send failed:", error); }
     }
 }
 
-
-// ==========================================
-// TEXTAREA AUTO-EXPAND & ENTER KEY LOGIC
-// ==========================================
-
-messageInput.addEventListener('input', function() {
-    this.style.height = 'auto'; 
-    this.style.height = (this.scrollHeight) + 'px'; 
-});
-
+messageInput.addEventListener('input', function() { this.style.height = 'auto'; this.style.height = (this.scrollHeight) + 'px'; });
 messageInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault(); 
-        const text = this.value.trim();
-        if (text) {
-            sendTextMessage(text);
-            this.value = ''; 
-            this.style.height = 'auto'; 
-        }
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); const t = this.value.trim(); if (t) { sendTextMessage(t); this.value = ''; this.style.height = 'auto'; } }
 });
+chatForm.addEventListener('submit', async (e) => { e.preventDefault(); const t = messageInput.value.trim(); if (t) { await sendTextMessage(t); messageInput.value = ''; messageInput.style.height = 'auto'; } });
+emojiBtns.forEach(btn => btn.addEventListener('click', async () => await sendTextMessage(btn.textContent)));
 
-chatForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const text = messageInput.value.trim();
-    if (text) {
-        await sendTextMessage(text);
-        messageInput.value = ''; 
-        messageInput.style.height = 'auto'; 
-    }
-});
-
-emojiBtns.forEach(btn => {
-    btn.addEventListener('click', async () => {
-        await sendTextMessage(btn.textContent);
-    });
-});
-
-
-// ==========================================
-// MEDIA UPLOAD & RECORDING
-// ==========================================
-
-// Convert Image to WebP
 async function convertToWebP(file) {
     return new Promise((resolve, reject) => {
-        const img = new Image();
-        img.src = URL.createObjectURL(file);
+        const img = new Image(); img.src = URL.createObjectURL(file);
         img.onload = () => {
-            URL.revokeObjectURL(img.src);
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0);
-
-            canvas.toBlob((blob) => {
-                if (blob) {
-                    const newName = file.name.replace(/\.[^/.]+$/, "") + ".webp";
-                    const webpFile = new File([blob], newName, { type: 'image/webp' });
-                    resolve(webpFile);
-                } else { reject(new Error("Canvas to Blob failed")); }
-            }, 'image/webp', 0.8); 
-        };
-        img.onerror = (error) => { URL.revokeObjectURL(img.src); reject(error); };
+            URL.revokeObjectURL(img.src); const canvas = document.createElement('canvas');
+            canvas.width = img.width; canvas.height = img.height; const ctx = canvas.getContext('2d'); ctx.drawImage(img, 0, 0);
+            canvas.toBlob((b) => { if (b) resolve(new File([b], file.name.replace(/\.[^/.]+$/, "") + ".webp", { type: 'image/webp' })); else reject(new Error("WebP fail")); }, 'image/webp', 0.8); 
+        }; img.onerror = (e) => { URL.revokeObjectURL(img.src); reject(e); };
     });
 }
 
 async function handleFileUpload(file) {
-    if (!file || !auth.currentUser) return;
-
-    const MAX_FILE_SIZE_MB = 20; 
-    if (file.size > (MAX_FILE_SIZE_MB * 1024 * 1024)) {
-        alert(`This file is too large (over ${MAX_FILE_SIZE_MB}MB). Please select a smaller file or trim the video.`);
-        return; 
-    }
+    if (!file || !auth.currentUser || !currentActiveRoomId) return;
+    if (file.size > (20 * 1024 * 1024)) { alert(`File too large (over 20MB).`); return; }
 
     let fileToUpload = file;
-    const isImage = file.type.startsWith('image/');
-    const isVideo = file.type.startsWith('video/');
+    if (file.type.startsWith('image/') && file.type !== 'image/webp') { try { fileToUpload = await convertToWebP(file); } catch (e) { console.error(e); } }
 
-    if (isImage && file.type !== 'image/webp') {
-        try { fileToUpload = await convertToWebP(file); } 
-        catch (error) { console.error("WebP conversion failed.", error); }
-    }
-
-    const storageRef = ref(storage, `uploads/${Date.now()}_${fileToUpload.name}`);
-    console.log("Uploading...");
-
+    const storageRef = ref(storage, `uploads/${currentActiveRoomId}/${Date.now()}_${fileToUpload.name}`);
     try {
         const snapshot = await uploadBytesResumable(storageRef, fileToUpload);
         const downloadURL = await getDownloadURL(snapshot.ref);
+        let mText = `📎 ${fileToUpload.name}`;
+        if (file.type.startsWith('image/')) mText = '📷 Photo'; if (file.type.startsWith('video/')) mText = '🎥 Video';
 
-        let messageText = `📎 ${fileToUpload.name}`;
-        if (isImage) messageText = '📷 Photo';
-        if (isVideo) messageText = '🎥 Video';
-
-        await addDoc(collection(db, "messages"), {
-            text: messageText,
-            fileUrl: downloadURL,
-            fileType: isVideo ? 'video' : (isImage ? 'image' : 'file'), 
-            senderId: auth.currentUser.uid,
-            senderName: auth.currentUser.displayName,
-            createdAt: serverTimestamp()
+        await addDoc(collection(db, "chats", currentActiveRoomId, "messages"), {
+            text: mText, fileUrl: downloadURL, fileType: file.type.startsWith('video/') ? 'video' : (file.type.startsWith('image/') ? 'image' : 'file'), 
+            senderId: auth.currentUser.uid, senderName: auth.currentUser.displayName, createdAt: serverTimestamp()
         });
-
-    } catch (error) {
-        console.error("Upload failed!", error);
-        alert("Failed to upload file. Check your connection.");
-    }
+    } catch (error) { alert("Upload failed."); }
 }
 
 imageUpload.addEventListener('change', (e) => handleFileUpload(e.target.files[0]));
 videoUpload.addEventListener('change', (e) => handleFileUpload(e.target.files[0]));
 fileUpload.addEventListener('change', (e) => handleFileUpload(e.target.files[0]));
 
-// Audio Recording
 micBtn.addEventListener('click', async () => {
     if (!isRecording) {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
-            
-            mediaRecorder.ondataavailable = (event) => {
-                if (event.data.size > 0) audioChunks.push(event.data);
-            };
-
+            mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) audioChunks.push(e.data); };
             mediaRecorder.onstop = async () => {
-                const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
-                audioChunks = []; 
-                const storageRef = ref(storage, `uploads/voice_${Date.now()}.webm`);
-
+                const audioBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType }); audioChunks = []; 
+                const storageRef = ref(storage, `uploads/${currentActiveRoomId}/voice_${Date.now()}.webm`);
                 try {
                     const snapshot = await uploadBytesResumable(storageRef, audioBlob);
                     const downloadURL = await getDownloadURL(snapshot.ref);
-
-                    await addDoc(collection(db, "messages"), {
-                        text: '🎤 Voice Message',
-                        fileUrl: downloadURL,
-                        fileType: 'audio',
-                        senderId: auth.currentUser.uid,
-                        senderName: auth.currentUser.displayName,
-                        createdAt: serverTimestamp()
+                    await addDoc(collection(db, "chats", currentActiveRoomId, "messages"), {
+                        text: '🎤 Voice Message', fileUrl: downloadURL, fileType: 'audio',
+                        senderId: auth.currentUser.uid, senderName: auth.currentUser.displayName, createdAt: serverTimestamp()
                     });
-                } catch (error) { console.error("Voice upload failed!", error); }
+                } catch (e) { console.error(e); }
             };
-
-            mediaRecorder.start();
-            isRecording = true;
-            micBtn.classList.add('recording');
-            micBtn.textContent = '⏹️'; 
-
-        } catch (err) {
-            console.error("Microphone access denied:", err);
-            alert("Could not access the microphone.");
-        }
+            mediaRecorder.start(); isRecording = true; micBtn.classList.add('recording'); micBtn.textContent = '⏹️'; 
+        } catch (err) { alert("Microphone access denied."); }
     } else {
-        mediaRecorder.stop();
-        mediaRecorder.stream.getTracks().forEach(track => track.stop()); 
-        isRecording = false;
-        micBtn.classList.remove('recording');
-        micBtn.textContent = '🎤'; 
+        mediaRecorder.stop(); mediaRecorder.stream.getTracks().forEach(t => t.stop()); 
+        isRecording = false; micBtn.classList.remove('recording'); micBtn.textContent = '🎤'; 
     }
 });
 
-// Render Messages
 function displayMessage(data) {
     const isMe = data.senderId === auth.currentUser.uid;
-    
     const wrapperDiv = document.createElement('div');
-    wrapperDiv.style.display = 'flex';
-    wrapperDiv.style.flexDirection = 'column';
-    wrapperDiv.style.alignSelf = isMe ? 'flex-end' : 'flex-start';
-    wrapperDiv.style.maxWidth = '75%';
+    wrapperDiv.style.display = 'flex'; wrapperDiv.style.flexDirection = 'column';
+    wrapperDiv.style.alignSelf = isMe ? 'flex-end' : 'flex-start'; wrapperDiv.style.maxWidth = '75%';
 
     if (!isMe && data.senderName) {
-        const nameLabel = document.createElement('span');
-        nameLabel.classList.add('sender-name');
-        nameLabel.textContent = data.senderName;
-        wrapperDiv.appendChild(nameLabel);
+        const nameLabel = document.createElement('span'); nameLabel.classList.add('sender-name'); 
+        nameLabel.textContent = data.senderName; wrapperDiv.appendChild(nameLabel);
     }
 
     const messageDiv = document.createElement('div');
     messageDiv.classList.add('message', isMe ? 'sent' : 'received');
-    messageDiv.style.maxWidth = '100%'; 
     
     if (data.fileUrl) {
         if (data.fileType === 'image') {
-            const img = document.createElement('img');
-            img.src = data.fileUrl;
-            messageDiv.appendChild(img);
+            const img = document.createElement('img'); img.src = data.fileUrl; messageDiv.appendChild(img);
         } else if (data.fileType === 'audio') {
-            const audioEl = document.createElement('audio');
-            audioEl.controls = true;
-            audioEl.src = data.fileUrl;
-            messageDiv.appendChild(audioEl);
+            const audioEl = document.createElement('audio'); audioEl.controls = true; audioEl.src = data.fileUrl; messageDiv.appendChild(audioEl);
         } else if (data.fileType === 'video') {
-            const videoEl = document.createElement('video');
-            videoEl.controls = true;
-            videoEl.src = data.fileUrl;
-            videoEl.preload = "metadata"; 
-            messageDiv.appendChild(videoEl);
+            const videoEl = document.createElement('video'); videoEl.controls = true; videoEl.src = data.fileUrl; videoEl.preload = "metadata"; messageDiv.appendChild(videoEl);
         } else {
-            const link = document.createElement('a');
-            link.href = data.fileUrl;
-            link.target = "_blank"; 
-            link.textContent = data.text; 
-            messageDiv.appendChild(link);
+            const link = document.createElement('a'); link.href = data.fileUrl; link.target = "_blank"; link.textContent = data.text; messageDiv.appendChild(link);
         }
-    } else {
-        messageDiv.textContent = data.text;
-    }
+    } else { messageDiv.textContent = data.text; }
 
-    // Timestamp
-    const timeSpan = document.createElement('span');
-    timeSpan.classList.add('timestamp');
-    if (data.createdAt) {
-        const date = data.createdAt.toDate();
-        timeSpan.textContent = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    } else {
-        timeSpan.textContent = "Sending...";
-    }
+    const timeSpan = document.createElement('span'); timeSpan.classList.add('timestamp');
+    if (data.createdAt) timeSpan.textContent = data.createdAt.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    else timeSpan.textContent = "Sending..."; 
     
-    messageDiv.appendChild(timeSpan);
-    wrapperDiv.appendChild(messageDiv);
-    chatBox.appendChild(wrapperDiv);
+    messageDiv.appendChild(timeSpan); wrapperDiv.appendChild(messageDiv); chatBox.appendChild(wrapperDiv);
 }

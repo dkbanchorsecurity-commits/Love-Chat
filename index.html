@@ -6,11 +6,8 @@
     <title>LoveChat</title>
     
     <link rel="icon" href="love-logo.png" type="image/png">
-    
     <link rel="manifest" href="manifest.json">
-    
     <meta name="theme-color" content="#ff6b81">
-    
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="LoveChat">
@@ -26,31 +23,54 @@
             <p class="auth-subtitle">A private space just for us.</p>
             
             <form id="auth-form" class="auth-step">
-                <input type="text" id="auth-name" placeholder="Your Name (e.g., Hubby)" class="auth-input" style="display: none;">
-                <input type="email" id="auth-email" placeholder="Email Address" class="auth-input" required>
-                <input type="password" id="auth-password" placeholder="Password" class="auth-input" required>
-                <button type="submit" id="auth-submit-btn" class="auth-btn">Login</button>
+                <input type="text" id="auth-name" placeholder="Your Name" class="auth-input" required>
+                <input type="tel" id="auth-phone" placeholder="Phone (e.g. +1234567890)" class="auth-input" required>
+                
+                <div id="recaptcha-container" style="margin: 15px 0; display: flex; justify-content: center;"></div>
+                
+                <button type="submit" id="auth-submit-btn" class="auth-btn">Send SMS Code</button>
             </form>
 
-            <button id="auth-toggle-btn" class="auth-toggle">Need an account? Sign up</button>
+            <form id="verify-form" class="auth-step" style="display: none;">
+                <p style="margin-bottom: 15px; color: #666;">Enter the 6-digit code sent to your phone.</p>
+                <input type="text" id="auth-code" placeholder="6-digit Code" class="auth-input" required>
+                <button type="submit" id="verify-submit-btn" class="auth-btn">Verify & Login</button>
+                <button type="button" id="cancel-verify-btn" class="auth-toggle">Cancel</button>
+            </form>
         </div>
     </div>
 
-    <div class="chat-app" id="chat-section" style="display: none;">
-        
+    <div class="chat-app" id="inbox-section" style="display: none;">
         <header class="chat-header" style="display: flex; justify-content: space-between; align-items: center;">
             <div style="display: flex; flex-direction: column; align-items: flex-start; text-align: left;">
-                <h2 style="margin:0; font-size: 22px; display: flex; align-items: center;">
-                    LoveChat
-                    <span id="unread-badge" class="unread-badge" style="display: none;">0</span>
-                </h2>
-                <span id="user-greeting" style="font-size: 14px; opacity: 0.9; margin-top: 2px;"></span>
+                <h2 style="margin:0; font-size: 22px;">Inbox</h2>
+                <span id="inbox-greeting" style="font-size: 14px; opacity: 0.9; margin-top: 2px;"></span>
             </div>
             <button id="logout-btn" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 14px; text-decoration: underline;">Logout</button>
         </header>
 
-        <main class="chat-box" id="chat-box">
-            </main>
+        <div class="add-contact-area">
+            <form id="add-contact-form" style="display: flex; gap: 10px;">
+                <input type="tel" id="new-contact-phone" placeholder="Partner's Phone (e.g. +1...)" required style="flex: 1; padding: 10px; border-radius: 12px; border: 1px solid #ffd1da; outline: none;">
+                <button type="submit" class="auth-btn" style="width: auto; padding: 10px 15px;">Add</button>
+            </form>
+        </div>
+
+        <div class="contact-list" id="contact-list"></div>
+    </div>
+
+    <div class="chat-app" id="chat-section" style="display: none;">
+        <header class="chat-header" style="display: flex; align-items: center; gap: 15px;">
+            <button id="back-to-inbox-btn" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 20px;">⬅️</button>
+            <div style="display: flex; flex-direction: column; align-items: flex-start; text-align: left; flex: 1;">
+                <h2 style="margin:0; font-size: 20px; display: flex; align-items: center;">
+                    <span id="chat-partner-name">Partner</span>
+                    <span id="unread-badge" class="unread-badge" style="display: none;">0</span>
+                </h2>
+            </div>
+        </header>
+
+        <main class="chat-box" id="chat-box"></main>
 
         <div class="quick-emojis" id="quick-emojis">
             <span class="emoji-btn" title="Love">❤️</span>
@@ -85,9 +105,7 @@
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
-                navigator.serviceWorker.register('./sw.js')
-                    .then(reg => console.log('Service Worker registered!'))
-                    .catch(err => console.error('Service Worker registration failed:', err));
+                navigator.serviceWorker.register('./sw.js').catch(err => console.error(err));
             });
         }
     </script>
