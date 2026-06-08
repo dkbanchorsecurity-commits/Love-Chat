@@ -102,13 +102,18 @@
         </div>
 
         <form class="chat-input-area" id="chat-form">
-            <label for="image-upload" class="attachment-btn">📷</label>
+            <label for="image-upload" class="attachment-btn" title="Send Photo">📷</label>
             <input type="file" id="image-upload" accept="image/*" capture="environment" hidden>
-            <label for="video-upload" class="attachment-btn">🎥</label>
+            
+            <label for="video-upload" class="attachment-btn" title="Send Video">🎥</label>
             <input type="file" id="video-upload" accept="video/*" capture="camcorder" hidden>
-            <label for="file-upload" class="attachment-btn">📎</label>
-            <button type="button" id="mic-btn" class="attachment-btn" style="border:none; background:transparent;">🎤</button>
-            <button type="button" id="location-btn" class="attachment-btn" style="border:none; background:transparent;">📍</button>
+            
+            <label for="file-upload" class="attachment-btn" title="Send File">📎</label>
+            <input type="file" id="file-upload" accept="*/*" hidden>
+            
+            <button type="button" id="mic-btn" class="attachment-btn" title="Record Voice Note" style="border:none; background:transparent;">🎤</button>
+            <button type="button" id="location-btn" class="attachment-btn" title="Share Live Location" style="border:none; background:transparent;">📍</button>
+            
             <textarea id="message-input" placeholder="Type a message..." rows="1"></textarea>
             <button type="submit">Send</button>
         </form>
