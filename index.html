@@ -8,7 +8,6 @@
     <link rel="icon" href="love-logo.png" type="image/png">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ff6b81">
-    
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -27,9 +26,7 @@
             <form id="auth-form" class="auth-step">
                 <input type="text" id="auth-name" placeholder="Your Name" class="auth-input" required>
                 <input type="tel" id="auth-phone" placeholder="Phone (e.g. +1234567890)" class="auth-input" required>
-                
                 <div id="recaptcha-container" style="margin: 15px 0; display: flex; justify-content: center;"></div>
-                
                 <button type="submit" id="auth-submit-btn" class="auth-btn">Send SMS Code</button>
             </form>
 
@@ -44,9 +41,17 @@
 
     <div class="chat-app" id="inbox-section" style="display: none;">
         <header class="chat-header" style="display: flex; justify-content: space-between; align-items: center;">
-            <div style="display: flex; flex-direction: column; align-items: flex-start; text-align: left;">
-                <h2 style="margin:0; font-size: 22px;">Inbox</h2>
-                <span id="inbox-greeting" style="font-size: 14px; opacity: 0.9; margin-top: 2px;"></span>
+            <div style="display: flex; align-items: center; gap: 12px;">
+                <label for="profile-pic-upload" style="cursor: pointer; position: relative;" title="Change Profile Picture">
+                    <div id="my-avatar" class="contact-avatar" style="width: 45px; height: 45px; font-size: 20px; border: 2px solid white; box-shadow: 0 2px 5px rgba(0,0,0,0.2);"></div>
+                    <div style="position: absolute; bottom: -2px; right: -2px; background: white; border-radius: 50%; padding: 2px 4px; font-size: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.3);">📷</div>
+                </label>
+                <input type="file" id="profile-pic-upload" accept="image/*" hidden>
+                
+                <div style="display: flex; flex-direction: column; align-items: flex-start; text-align: left;">
+                    <h2 style="margin:0; font-size: 22px;">Inbox</h2>
+                    <span id="inbox-greeting" style="font-size: 13px; opacity: 0.9;"></span>
+                </div>
             </div>
             <button id="logout-btn" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 14px; text-decoration: underline;">Logout</button>
         </header>
@@ -62,10 +67,11 @@
     </div>
 
     <div class="chat-app" id="chat-section" style="display: none;">
-        <header class="chat-header" style="display: flex; align-items: center; gap: 15px;">
+        <header class="chat-header" style="display: flex; align-items: center; gap: 10px;">
             <button id="back-to-inbox-btn" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 20px;">⬅️</button>
+            <div id="chat-partner-avatar" class="contact-avatar" style="width: 35px; height: 35px; font-size: 16px; border: 2px solid white;"></div>
             <div style="display: flex; flex-direction: column; align-items: flex-start; text-align: left; flex: 1;">
-                <h2 style="margin:0; font-size: 20px; display: flex; align-items: center;">
+                <h2 style="margin:0; font-size: 18px; display: flex; align-items: center;">
                     <span id="chat-partner-name">Partner</span>
                     <span id="unread-badge" class="unread-badge" style="display: none;">0</span>
                 </h2>
@@ -73,6 +79,11 @@
         </header>
 
         <main class="chat-box" id="chat-box"></main>
+
+        <div id="typing-indicator" class="typing-indicator" style="display: none;">
+            <span class="typing-text" id="typing-text-name">Partner</span>
+            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        </div>
 
         <div class="quick-emojis" id="quick-emojis">
             <span class="emoji-btn" title="Love">❤️</span>
@@ -90,18 +101,30 @@
         <form class="chat-input-area" id="chat-form">
             <label for="image-upload" class="attachment-btn" title="Send Photo">📷</label>
             <input type="file" id="image-upload" accept="image/*" capture="environment" hidden>
-            
             <label for="video-upload" class="attachment-btn" title="Send Video">🎥</label>
             <input type="file" id="video-upload" accept="video/*" capture="camcorder" hidden>
-            
             <label for="file-upload" class="attachment-btn" title="Send File">📎</label>
             <input type="file" id="file-upload" accept="*/*" hidden>
-
             <button type="button" id="mic-btn" class="attachment-btn" title="Record Voice Note" style="border:none; background:transparent;">🎤</button>
-
             <textarea id="message-input" placeholder="Type a message..." rows="1"></textarea>
             <button type="submit">Send</button>
         </form>
+    </div>
+
+    <div id="action-sheet-modal" class="modal-overlay" style="display: none;">
+        <div class="bottom-sheet">
+            <button id="btn-forward-msg" class="sheet-btn">➡️ Forward Message</button>
+            <button id="btn-delete-msg" class="sheet-btn delete-btn">🗑️ Delete for Everyone</button>
+            <button id="btn-cancel-action" class="sheet-btn cancel-btn">Cancel</button>
+        </div>
+    </div>
+
+    <div id="forward-modal" class="modal-overlay" style="display: none;">
+        <div class="bottom-sheet" style="max-height: 80vh;">
+            <h3 style="text-align: center; margin-bottom: 15px; color: #333;">Forward to...</h3>
+            <div id="forward-contact-list" class="contact-list" style="overflow-y: auto; max-height: 50vh;"></div>
+            <button id="btn-cancel-forward" class="sheet-btn cancel-btn" style="margin-top: 15px;">Cancel</button>
+        </div>
     </div>
 
     <script>
