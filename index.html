@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LoveChat</title>
+    
     <link rel="icon" href="love-logo.png" type="image/png">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ff6b81">
@@ -11,6 +12,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="love-logo.png">
+
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
@@ -52,11 +54,13 @@
         </header>
 
         <div class="add-contact-area">
-            <form id="add-contact-form" style="display: flex; gap: 10px;">
-                <input type="tel" id="new-contact-phone" placeholder="Partner's Phone..." required style="flex: 1; padding: 10px; border-radius: 12px; border: 1px solid #ffd1da; outline: none;">
-                <button type="submit" class="auth-btn" style="width: auto; padding: 10px 15px;">Add</button>
-                <button type="button" id="device-contacts-btn" class="auth-btn" style="width: auto; padding: 10px 15px; background: #fcfcfc; color: #333; border: 1px solid #ffd1da;" title="Phone Book">📖</button>
-                <button type="button" id="open-create-group-btn" class="auth-btn" style="width: auto; padding: 10px 15px; background: #fcfcfc; color: #333; border: 1px solid #ffd1da;" title="Create Group">👥</button>
+            <form id="add-contact-form" class="inbox-toolbar">
+                <input type="tel" id="new-contact-phone" placeholder="Partner's Phone (+1...)" required class="toolbar-input">
+                <div class="toolbar-actions">
+                    <button type="submit" class="toolbar-btn add-btn" title="Add Contact">➕</button>
+                    <button type="button" id="device-contacts-btn" class="toolbar-btn" title="Phone Book">📖</button>
+                    <button type="button" id="open-create-group-btn" class="toolbar-btn" title="Create Group">👥</button>
+                </div>
             </form>
         </div>
         <div class="contact-list" id="contact-list"></div>
@@ -65,14 +69,14 @@
     <div class="chat-app" id="chat-section" style="display: none;">
         <header class="chat-header" id="chat-header" style="display: flex; align-items: center; gap: 10px;">
             <button id="back-to-inbox-btn" style="background: transparent; border: none; color: white; cursor: pointer; font-size: 20px;">⬅️</button>
-            <div id="chat-partner-avatar" class="contact-avatar" style="width: 35px; height: 35px; font-size: 16px; border: 2px solid white;"></div>
+            <div id="chat-partner-avatar" class="contact-avatar" style="width: 35px; height: 35px; font-size: 16px; border: 2px solid white; cursor: pointer;"></div>
             <div style="display: flex; flex-direction: column; align-items: flex-start; text-align: left; flex: 1;">
                 <h2 style="margin:0; font-size: 18px; display: flex; align-items: center; cursor: pointer;">
                     <span id="chat-partner-name">Partner</span>
                     <span id="unread-badge" class="unread-badge" style="display: none;">0</span>
                 </h2>
             </div>
-            <button id="view-map-btn" style="display:none; background: transparent; border: none; cursor: pointer; font-size: 22px;">🗺️</button>
+            <button id="view-map-btn" style="display:none; background: transparent; border: none; cursor: pointer; font-size: 22px; animation: pulse 2s infinite;">🗺️</button>
         </header>
 
         <header class="selection-header" id="selection-header" style="display: none;">
