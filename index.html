@@ -4,7 +4,6 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>LoveChat</title>
-    
     <link rel="icon" href="love-logo.png" type="image/png">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#ff6b81">
@@ -12,7 +11,6 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="love-logo.png">
-
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 </head>
@@ -76,6 +74,10 @@
                     <span id="unread-badge" class="unread-badge" style="display: none;">0</span>
                 </h2>
             </div>
+            <div id="call-buttons-container" style="display: flex; gap: 10px;">
+                <button id="audio-call-btn" style="background: transparent; border: none; cursor: pointer; font-size: 20px;">📞</button>
+                <button id="video-call-btn" style="background: transparent; border: none; cursor: pointer; font-size: 20px;">📹</button>
+            </div>
             <button id="view-map-btn" style="display:none; background: transparent; border: none; cursor: pointer; font-size: 22px; animation: pulse 2s infinite;">🗺️</button>
         </header>
 
@@ -104,10 +106,8 @@
         <form class="chat-input-area" id="chat-form">
             <label for="image-upload" class="attachment-btn" title="Send Photo">📷</label>
             <input type="file" id="image-upload" accept="image/*" capture="environment" hidden>
-            
             <label for="video-upload" class="attachment-btn" title="Send Video">🎥</label>
             <input type="file" id="video-upload" accept="video/*" capture="camcorder" hidden>
-            
             <label for="file-upload" class="attachment-btn" title="Send File">📎</label>
             <input type="file" id="file-upload" accept="*/*" hidden>
             
@@ -168,6 +168,26 @@
         <div class="viewer-controls">
             <button id="zoom-out-btn" class="zoom-btn">➖</button>
             <button id="zoom-in-btn" class="zoom-btn">➕</button>
+        </div>
+    </div>
+
+    <div id="call-modal" class="modal-overlay" style="display: none; background: #111; z-index: 4000;">
+        <video id="remote-video" autoplay playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+        <video id="local-video" autoplay playsinline muted style="position: absolute; top: 50px; right: 20px; width: 100px; height: 150px; object-fit: cover; border-radius: 12px; border: 2px solid #ff6b81; box-shadow: 0 4px 10px rgba(0,0,0,0.5); z-index: 4010;"></video>
+        
+        <div id="incoming-call-ui" style="position: absolute; top: 40%; left: 50%; transform: translate(-50%, -50%); text-align: center; color: white; width: 100%; z-index: 4020;">
+            <div id="caller-avatar" class="contact-avatar" style="width: 100px; height: 100px; margin: 0 auto 20px auto; font-size: 40px; box-shadow: 0 0 20px rgba(255, 107, 129, 0.5);">📞</div>
+            <h2 id="incoming-call-name" style="margin-bottom: 30px;">Partner is calling...</h2>
+            <div style="display: flex; justify-content: center; gap: 40px;">
+                <button id="decline-call-btn" style="background: #ff3b50; width: 70px; height: 70px; border-radius: 50%; border: none; font-size: 28px; cursor: pointer; box-shadow: 0 4px 15px rgba(255, 59, 80, 0.4);">❌</button>
+                <button id="accept-call-btn" style="background: #4caf50; width: 70px; height: 70px; border-radius: 50%; border: none; font-size: 28px; cursor: pointer; box-shadow: 0 4px 15px rgba(76, 175, 80, 0.4); animation: pulse 1.5s infinite;">📞</button>
+            </div>
+        </div>
+
+        <div id="active-call-controls" style="position: absolute; bottom: 40px; width: 100%; display: flex; justify-content: center; gap: 20px; z-index: 4020; display: none;">
+            <button id="toggle-mic-call-btn" class="zoom-btn" style="background: rgba(255,255,255,0.2);">🎤</button>
+            <button id="toggle-cam-call-btn" class="zoom-btn" style="background: rgba(255,255,255,0.2);">📷</button>
+            <button id="hangup-call-btn" class="zoom-btn" style="background: #ff3b50; border: none;">📞</button>
         </div>
     </div>
 
